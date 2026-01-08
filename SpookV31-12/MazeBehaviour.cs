@@ -34,6 +34,26 @@ public class MazeManager : MonoBehaviour
 
     public string nextScene;
 
+    // Top is an opening from the top of the room
+    private static readonly string[] gateDispositionOptions = { "T", "R", "B", "L" };
+    // A Top door is matched with a bottom door
+    private static readonly Dictionary<string, string> reversedDispositions = new Dictionary<string, string>
+    {
+        { "T", "B" },
+        { "B", "T" },
+        { "R", "L" },
+        { "L", "R" }
+    };
+    // The player doesn't appear in the opposite gate, but a square away so they dont keep teleporting
+    private static readonly Dictionary<string, int[]> dispositionsModifier = new Dictionary<string, int[]>
+    {
+        { "T", new int[] { 0, -1 } },
+        { "R", new int[] { -1, 0 } },
+        { "B", new int[] { 0, 1 } },
+        { "L", new int[] { 1,  0 } }
+    };
+
+
     private void Awake()
     {
         // The Maze is a singleton
@@ -57,6 +77,7 @@ public class MazeManager : MonoBehaviour
 
     }
 
+    // Main function
     void CreateMap()
     {
         _rooms = new Room[roomNumber];
@@ -66,83 +87,138 @@ public class MazeManager : MonoBehaviour
         {
             _rooms[i] = new Room();
             _rooms[i].CreateFrame();
-            _rooms[i].PaintAllCells(xIndex, yIndex);
+            _rooms[i].PaintAllCells(xIndex, yIndex); // Cells are instantiated
 
             xIndex = xIndex + frameSize + _distancing; // Se van a imprimir en fila por el eje x
         }
-        PlaceGateWays();
-        PlaceAllBorders();
+
+        _gateWays = new HashSet<GameObject>(); // All gates
+
+        //PlaceGateWays(_rooms, true); // Primary gateways are instantiated in all rooms
+        PlaceAllBorders(); // Colliders are instantiated in all map
     }
 
-    public void PlaceGateWays()
+    // Runs through a series of given rooms and connects them
+    private void PlaceGateWays(Room[] rooms, bool primary = false) // Rooms are in order for primary gates, and in disorder for secondary gates
     {
-        _gateWays = new HashSet<GameObject>();
 
-        string[] gateDispositionOptions = { "T", "R", "B", "L" };
-        string[] gateDispositionResversed = { "B", "L", "T", "R" };
-
-        int[][] dispositionModifier = new int[][]
+        for (int i = 0; i < rooms.Length; i++)
         {
-            new int[] { 0, 1 },
-            new int[] { 1, 0 },
-            new int[] { 0, -1 },
-            new int[] { -1, 0 }
-        };
+            Cell[] enterRoom1Array;
+            Cell[] exitRoom2Array;
+            Room room1;
+            Room room2;
+            GameObject gate1;
+            GameObject gate2;
 
-        int[][] dispositionModifierReversed = new int[][]
-        {
-            new int[] { 0, -1 },
-            new int[] { -1, 0 },
-            new int[] { 0, 1 },
-            new int[] { 1, 0 }
-        };
+            var shuffledOrientations = gateDispositionOptions.OrderBy(_ => Random.value).ToArray();
+            // In each room, orientations are shuffled
 
-        for (int i = 0; i < roomNumber; i++)
-        {
-            int index = Random.Range(0, 4);
-            string gateDispositionEnter = gateDispositionOptions[index];
-            string gateDispositionExit = gateDispositionResversed[index];
-            
-            Room currentRoom = _rooms[i];
-            GameObject gate1 = currentRoom.SetRoomGates(gateDispositionEnter);
-            GateWay gateBehaviour1 = gate1.GetComponent<GateWay>();
-            int[] warpCoord1 = gateBehaviour1.GetFromScreenPositions();
-
-            if (i < roomNumber - 1)
+            if (i < rooms.Length - 1) // Not last room
             {
-                Room nextRoom = _rooms[i + 1];
-                GameObject gate2 = nextRoom.SetRoomGates(gateDispositionExit);
+                int index = 0; // Switches orientations so they are all picked
+                string orientation1;
+                string orientation2;
+
+                bool notFound = false;
+                do
+                {
+                    room1 = rooms[i];
+                    room2 = rooms[i + 1];
+
+                    orientation1 = shuffledOrientations[index];
+                    orientation2 = reversedDispositions[orientation1];
+
+                    enterRoom1Array = GateDispositionCells(orientation1, room1);
+                    exitRoom2Array = GateDispositionCells(orientation2, room2);
+
+
+                    index = index + 1;
+
+                    if (!primary && index > 3)
+                    {   
+                        notFound = true;
+                        break;
+                    }
+                }
+                while (enterRoom1Array.Length == 0 || exitRoom2Array.Length == 0);
+                index = 0;
+
+                if (notFound)
+                {
+                    continue;
+                }
+
+                // Selects random cells within the possible spots for a gate
+                Cell enterCell = room1.GetRandomCell(new HashSet<Cell>(enterRoom1Array)); 
+                Cell exitCell = room2.GetRandomCell(new HashSet<Cell>(exitRoom2Array));
+
+                // GameObjects are created
+                gate1 = room1.SetRoomGates(enterCell, orientation1);
+                gate2 = room2.SetRoomGates(exitCell, orientation2);
+
+                // GateBehaviour is set 
+                GateWay gateBehaviour1 = gate1.GetComponent<GateWay>();
+                int[] warpCoord1 = gateBehaviour1.GetFromScreenPositions();
+                int[] warpCoord1ToModifier = dispositionsModifier[orientation1];
+
                 GateWay gateBehaviour2 = gate2.GetComponent<GateWay>();
                 int[] warpCoord2 = gateBehaviour2.GetFromScreenPositions();
-                //Debug.Log("nextRoom " + nextRoom._roomID.ToString());
-                //Debug.Log("coords " + string.Join(", ", warpCoord2));
-                int[] warpCoord2ToModifier = dispositionModifier[index];
-                //Debug.Log("modifierTo " + string.Join(", ", warpCoord2ToModifier));
+                int[] warpCoord2ToModifier = dispositionsModifier[orientation2];
 
-                int[] warpCoord1ToModifier = dispositionModifierReversed[index];
-
-                //Debug.Log("currentRoom " + currentRoom._roomID.ToString());
-                //Debug.Log("coords " + string.Join(", ", warpCoord1));
-                //Debug.Log("modifierTo " + string.Join(", ", warpCoord1ToModifier));
-
+                // The current gate leads to the position of the next gate, with applied modifier
                 gateBehaviour1.SetToScreenPositions(warpCoord2[0] + warpCoord2ToModifier[0], warpCoord2[1] + warpCoord2ToModifier[1], i + 2);
+                // The second gate leads to the position of the current gate with applied modifier
                 gateBehaviour2.SetToScreenPositions(warpCoord1[0] + warpCoord1ToModifier[0], warpCoord1[1] + warpCoord1ToModifier[1], i + 1);
+
+                // Gates are appended to the maze's set
+                _gateWays.Add(gate1);
+                _gateWays.Add(gate2);
             }
-            else
+            else // Last room
             {
-                gateBehaviour1.SetToScreenPositions(0, 0, 0, nextScene);
+                if (primary) // Primary gates in the last room take you to another Scene
+                {
+                    string orientation; // Orientarion is shuffled too
+                    int index = 0;
+                    do
+                    {
+                        orientation = shuffledOrientations[index];
+                        room2 = rooms[i];
+                        exitRoom2Array = GateDispositionCells(orientation, room2);
+
+                        index = index + 1;
+                    } while (exitRoom2Array.Length == 0);
+
+                    Cell exitCell = room2.GetRandomCell(new HashSet<Cell>(exitRoom2Array));
+                    gate2 = room2.SetRoomGates(exitCell, orientation);
+                    GateWay gateBehaviour2 = gate2.GetComponent<GateWay>();
+                    gateBehaviour2.SetToScreenPositions(0, 0, 0, nextScene);
+
+                    _gateWays.Add(gate2);
+                }
+
             }
 
         }
-
-        //GateWay gateBehaviour = gateObject.GetComponent<GateWay>();
     }
 
+    // Within a room, get the valid positions for a gateway
+    private Cell[] GateDispositionCells(string orientation, Room room)
+    {
+        return room.GetAllGateBorders(orientation).ToArray();
+    }
+
+    // Instantiates de borders (including separatedly the corners)
     public void PlaceAllBorders()
     {
         foreach (Room room in _rooms)
         {
             room.SetRoomBorders();
+        }
+        foreach (Room room in _rooms)
+        {
+            room.SetRoomBordersSprites();
         }
     }
 
@@ -162,6 +238,13 @@ class Room
 
     private HashSet<GameObject> _gateWays; // The gateways from only this room
 
+    private HashSet<Cell> _takenSpace;
+
+    private Dictionary<string, WallBehaviour> _walls; 
+    // So as to not repeat walls and to set their neighbour relationships
+
+
+    // Creates the main frame, adds celular units to make rooms with more interesting shapes
     public void CreateFrame()
     {
         _roomID = GetRoomID();
@@ -206,9 +289,11 @@ class Room
         }
 
         _gateWays = new HashSet<GameObject>();
-
+        _walls = new Dictionary<string, WallBehaviour>();
+        
     }
 
+    // Adds rectangles to the main frame
     void AddCelularUnit(int width, int height, int roomCompression)
     {
         //Debug.Log("width cellular:" + width);
@@ -284,15 +369,6 @@ class Room
                 newY = _roomGrid.Length - height;
             }
 
-
-            //Debug.Log("x new:" + newX);
-            //Debug.Log("y new:" + newY);
-
-            //Debug.Log("x total:" + (newX + width));
-            //Debug.Log("y total:" + (newY + height));
-
-            //Debug.Log("_roomGrid" + _roomGrid.Length + " - " + _roomGrid[0].Length);
-
             for (int x = newX; x < newX + width; x++)
             {
                 for (int y = newY; y < newY + height; y++)
@@ -307,12 +383,14 @@ class Room
 
     }
 
+    // All rooms have a number
     int GetRoomID()
     {
         Room.IDcounter = Room.IDcounter + 1;
         return IDcounter;
     }
 
+    // Gets cells in room grid
     HashSet<Cell> GetAllCells()
     {
         HashSet<Cell> allCells = new HashSet<Cell>();
@@ -330,13 +408,15 @@ class Room
         return allCells;
     }
 
-    HashSet<Cell> GetAllBorders(string orientation=null) // Orientation means: Right -> to the right there is nothing
+    // Returns cells with a given orientation
+    public HashSet<Cell> GetAllBorders(string orientation) // Orientation means: Right -> to the right there is nothing
     {
         HashSet<Cell> allCells = GetAllCells();
         HashSet<Cell> borderCells = new HashSet<Cell>();
 
         foreach (Cell cell in allCells)
         {
+            // Next variables are the cell right next to the door, and should not have borders
             if (cell.nextToGatewayT && orientation == "T")
             {
                 continue;
@@ -439,6 +519,15 @@ class Room
         return borderCells;
     }
 
+    // Returns the borders where a gate is viable
+    public HashSet<Cell> GetAllGateBorders(string orientation)
+    {
+        HashSet<Cell> validBorders = new HashSet<Cell>();
+
+        return validBorders;
+    }
+
+    // Random Cell in a set or in the whole grid
     public Cell GetRandomCell(HashSet<Cell> set = null)
     {
         Cell randomCell = null;
@@ -457,6 +546,7 @@ class Room
         return randomCell;
     }
 
+    // All cells get their Sprite and are given coordinates
     public void PaintAllCells(int x, int y)
     {
         HashSet<Cell> allCells = GetAllCells();
@@ -469,6 +559,8 @@ class Room
         }
     }
 
+    // Add Gate to a room
+    // Should set nextTo and neighbouring cells
     public void AddGate(GameObject gateway, int frameX, int frameY, string orientation)
     {
         _gateWays.Add(gateway);
@@ -490,68 +582,74 @@ class Room
         }
             
     }
-
-    public GameObject SetRoomGates(string orientation)
+    
+    // Gateway is created and partially initialized
+    public GameObject SetRoomGates(Cell cell, string orientation)
     {
-        HashSet<Cell> cells = GetAllBorders(orientation);
-        Cell cell = GetRandomCell(cells);
-
-        int[] frameCoords = cell.FrameCoordinates();
-
         int[] coords = cell.ScreenCoordinates();
-        int xIndex = coords[0];
-        int yIndex = coords[1];
+        int xindex = coords[0];
+        int yindex = coords[1];
 
-        int _xPosition = 0;
-        int _yPosition = 0;
+        int _xposition = 0;
+        int _yposition = 0;
 
         if (orientation == "T")
         {
-            _xPosition = xIndex;
-            _yPosition = yIndex + 1;
+            _xposition = xindex;
+            _yposition = yindex + 1;
         }
         else if (orientation == "B")
         {
-            _xPosition = xIndex;
-            _yPosition = yIndex - 1;
+            _xposition = xindex;
+            _yposition = yindex - 1;
         }
         else if (orientation == "R")
         {
-            _xPosition = xIndex + 1;
-            _yPosition = yIndex;
+            _xposition = xindex + 1;
+            _yposition = yindex;
         }
         else if (orientation == "L")
         {
-            _xPosition = xIndex - 1;
-            _yPosition = yIndex;
+            _xposition = xindex - 1;
+            _yposition = yindex;
         }
 
         GameObject gateObject = UnityEngine.Object.Instantiate(
             MazeManager.Instance.warpPrefab,
-            new Vector2(_xPosition, _yPosition),
+            new Vector2(_xposition, _yposition),
             Quaternion.identity,
             _roomObject.transform
         );
 
         GateWay gateBehaviour = gateObject.GetComponent<GateWay>();
-        gateBehaviour.SetFramePositions(frameCoords[0], frameCoords[1]); // Frame border
+
+        int[] frameCoords = cell.FrameCoordinates();
+        gateBehaviour.SetFramePositions(frameCoords[0], frameCoords[1]); // frame border
         AddGate(gateObject, frameCoords[0], frameCoords[1], orientation);
 
-        gateBehaviour.SetFromScreenPositions(_xPosition, _yPosition, _roomID); // SceenPosition of warp, outside used frame
+        gateBehaviour.SetFromScreenPositions(_xposition, _yposition, _roomID); // sceenposition of warp, outside used frame
 
         return gateObject;
-
     }
 
-    public void SetSecondaryGates()
+    // Begins setting _takenSpace
+    private void SetPath()
     {
 
     }
 
+    // Once all the walls have their bools set, the correct sprite is set
+    public void SetRoomBordersSprites()
+    {
+
+    }
+
+    // Room borders and corners are created in _walls
     public void SetRoomBorders()
     {
         string[] orientations = { "T", "B", "R", "L" };
 
+        // Normal borders
         foreach (string orientation in orientations)
         {
 
@@ -564,6 +662,10 @@ class Room
                 int xIndex = coords[0];
                 int yIndex = coords[1];
 
+                int[] frameCoords = cell.FrameCoordinates();
+                int xFrame = frameCoords[0];
+                int yFrame = frameCoords[1];
+
                 int _xPosition = 0;
                 int _yPosition = 0;
 
@@ -571,32 +673,240 @@ class Room
                 {
                     _xPosition = xIndex;
                     _yPosition = yIndex + 1;
+                    yFrame++;
                 }
                 else if (orientation == "B")
                 {
                     _xPosition = xIndex;
                     _yPosition = yIndex - 1;
+                    yFrame--;
                 }
                 else if (orientation == "R")
                 {
                     _xPosition = xIndex + 1;
                     _yPosition = yIndex;
+                    xFrame++;
                 }
                 else if (orientation == "L")
                 {
                     _xPosition = xIndex - 1;
                     _yPosition = yIndex;
+                    xFrame--;
                 }
+                AddBorder(_xPosition, _yPosition, xFrame, yFrame);
+            }
+        }
 
-                GameObject gateObject = UnityEngine.Object.Instantiate(
+        // Corners borders
+        HashSet<Cell> allCells = GetAllCells();
+        foreach (Cell cell in allCells)
+        {
+            fixCorner(cell);
+        }
+
+        foreach (KeyValuePair<string, WallBehaviour> entry in _walls)
+        {
+            WallBehaviour wall = entry.Value;
+            int x = wall.frameX;
+            int y = wall.frameY;
+            
+            // Neighbouring walls
+            if (_walls.ContainsKey((x + 1) + "/" + (y)))
+            {
+                wall.right = true;
+            }
+            if (_walls.ContainsKey((x - 1) + "/" + (y)))
+            {
+                wall.left = true;
+            }
+            if (_walls.ContainsKey((x) + "/" + (y + 1)))
+            {
+                wall.top = true;
+            }
+            if (_walls.ContainsKey((x) + "/" + (y - 1)))
+            {
+                wall.bottom = true;
+            }
+
+            // Neighbouring cells
+            // Right cell
+            if (x + 1 < _frameSize && y < _frameSize)
+            {
+                if (x + 1 >= 0 && y >= 0)
+                {
+                    if (_roomGrid[x + 1][y] != null)
+                    {
+                        wall.rightCell = true;
+                    }
+                }
+            }
+            // Left cell
+            if (x - 1 < _frameSize && y < _frameSize)
+            {
+                if (x - 1 >= 0 && y >= 0)
+                {
+                    if (_roomGrid[x - 1][y] != null)
+                    {
+                        wall.leftCell = true;
+                    }
+                }
+            }
+            // Top cell
+            if (x < _frameSize && y + 1 < _frameSize)
+            {
+                if (x >= 0 && y + 1 >= 0)
+                {
+                    if (_roomGrid[x][y + 1] != null)
+                    {
+                        wall.topCell = true;
+                    }
+                }
+            }
+            // Bottom cell
+            if (x < _frameSize && y - 1 < _frameSize)
+            {
+                if (x >= 0 && y - 1 >= 0)
+                {
+                    if (_roomGrid[x][y - 1] != null)
+                    {
+                        wall.bottomCell = true;
+                    }
+                }
+            }
+
+            wall.LoadSprite();
+        }
+
+    }
+
+    // Sets it so a border is not added twice
+    private void AddBorder(int  screenX, int screenY, int x, int y)
+    {
+        string key = x + "/" + y;
+        if (!_walls.ContainsKey(key))
+        {
+            GameObject gateObject = UnityEngine.Object.Instantiate(
                     MazeManager.Instance.wallPrefab,
-                    new Vector2(_xPosition, _yPosition),
+                    new Vector2(screenX, screenY),
                     Quaternion.identity,
                     _roomObject.transform
                 );
-            }
+            WallBehaviour wall = gateObject.GetComponent<WallBehaviour>();
+            wall.LoadFrame(x, y);
+            _walls[key] = wall;
         }
     }
+
+    // Recognizes borders to find corners
+    private bool[] findCorners(int frameX, int frameY)
+    {
+        bool rightBorder = false;
+        bool leftBorder = false;
+        bool bottomBorder = false;
+        bool topBorder = false;
+
+        if (frameX == 0)
+        {
+            leftBorder = true;
+        }
+        else if (_roomGrid[frameX - 1][frameY] == null)
+        {
+            leftBorder = true;
+        }
+
+        if (frameX == _frameSize - 1)
+        {
+            rightBorder = true;
+        }
+        else if (_roomGrid[frameX + 1][frameY] == null)
+        {
+            rightBorder = true;
+        }
+
+        if (frameY == 0)
+        {
+            bottomBorder = true;
+        }
+        else if (_roomGrid[frameX][frameY + -1] == null)
+        {
+            bottomBorder = true;
+        }
+
+        if (frameY == _frameSize - 1)
+        {
+            topBorder = true;
+        }
+        else if (_roomGrid[frameX][frameY + 1] == null)
+        {
+            topBorder = true;
+        }
+
+        return new bool[] { topBorder, bottomBorder, rightBorder, leftBorder };
+    }
+
+    private string IsInnerCorner(int frameX, int frameY, string orientation)
+    {
+        Cell cell = _roomGrid[frameX][frameY];
+        if (orientation == "T")
+        {
+
+        }
+        else if (orientation == "B")
+        {
+
+        }
+        else if (orientation == "R")
+        {
+
+        }
+        else if (orientation == "L")
+        {
+
+        }
+        return null;
+    }
+
+    // Finds the walls corners and adds the to _walls
+    private void fixCorner(Cell cell)
+    {
+        int[] coords = cell.FrameCoordinates();
+        int frameX = coords[0];
+        int frameY = coords[1];
+
+        bool[] corners = findCorners(frameX, frameY);
+        bool topBorder = corners[0];
+        bool bottomBorder = corners[1];
+        bool rightBorder = corners[2];
+        bool leftBorder = corners[3];
+
+        int[] screenCoords = cell.ScreenCoordinates();
+        int screenX = screenCoords[0];
+        int screenY = screenCoords[1];
+
+        // Corners are recognized and created
+        if (topBorder && rightBorder)
+        {
+            AddBorder(screenX + 1, screenY + 1, frameX + 1, frameY + 1);
+        }
+        if (topBorder && leftBorder)
+        {
+            AddBorder(screenX - 1, screenY + 1, frameX - 1, frameY + 1);
+        }
+        if (bottomBorder && rightBorder)
+        {
+            AddBorder(screenX + 1, screenY - 1, frameX + 1, frameY - 1);
+        } 
+        if (bottomBorder && leftBorder)
+        {
+            AddBorder(screenX - 1, screenY - 1, frameX - 1, frameY - 1);
+        }
+
+    }
+
+    private void MarkAsGatewaySpace(int frameX, int frameY, string orientation)
+    {
+        //Cell cell = _roomGrid[frameX][frameY];
+    } 
 }
 
 class Cell
