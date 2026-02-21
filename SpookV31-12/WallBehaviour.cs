@@ -10,6 +10,11 @@ public class WallBehaviour : MonoBehaviour
     public Sprite bottomLeftCorner;
     public Sprite topLeftCorner;
 
+    public Sprite rightTip;
+    public Sprite leftTip;
+    public Sprite topTip;
+    public Sprite bottomTip;
+
     public Sprite defaultWall;
 
     public bool top;
@@ -52,52 +57,88 @@ public class WallBehaviour : MonoBehaviour
 
     public void LoadSprite()
     {
+        bool set = false;
+
         if (!bottomCell && !topCell && !rightCell && !leftCell) // Corner
         {
             if (right && top && !bottom && !left)
             {
                 _renderer.sprite = bottomLeftCorner;
+                set = true;
             }
             else if (right && bottom && !top && !left)
             {
                 _renderer.sprite = topLeftCorner;
+                set = true;
             }
             else if (left && top && !bottom && !right)
             {
                 _renderer.sprite = bottomRightCorner;
+                set = true;
             }
             else if (left && bottom && !top && !right)
             {
                 _renderer.sprite = topRightCorner;
+                set = true;
             }
 
         }
-        else if (right && top && leftCell && bottomCell) // Inner Corners
+        if (!set)
         {
-            _renderer.sprite = bottomLeftCorner;
+            if (right && top && leftCell && bottomCell) // Inner Corners
+            {
+                _renderer.sprite = bottomLeftCorner;
+                set = true;
+            }
+            else if (right && bottom && leftCell && topCell)
+            {
+                _renderer.sprite = topLeftCorner;
+                set = true;
+            }
+            else if (left && top && rightCell && bottomCell)
+            {
+                _renderer.sprite = bottomRightCorner;
+                set = true;
+            }
+            else if (left && bottom && rightCell && topCell)
+            {
+                _renderer.sprite = topRightCorner;
+                set = true;
+            }
+            else if (top && bottom) // Vertical  && !right && !left
+            {
+                _renderer.sprite = verticalWall;
+                set = true;
+            }
+            else if (right && left) // Horizontal  && !top && !bottom
+            {
+                _renderer.sprite = horizontalWall;
+                set = true;
+            }
+            else if (right && !top && !bottom && !left) // Tips
+            {
+                _renderer.sprite = leftTip;
+                set = true;
+            }
+            else if (left && !top && !bottom && !right)
+            {
+                _renderer.sprite = rightTip;
+                set = true;
+            }
+            else if (top && !right && !left && !bottom)
+            {
+                _renderer.sprite = bottomTip;
+                set = true;
+            }
+            else if (bottom && !left && !top && !right)
+            {
+                _renderer.sprite = topTip;
+                set = true;
+            }
         }
-        else if (right && bottom && leftCell && topCell)
-        {
-            _renderer.sprite = topLeftCorner;
-        }
-        else if (left && top && rightCell && bottomCell)
-        {
-            _renderer.sprite = bottomRightCorner;
-        }
-        else if (left && bottom && rightCell && topCell)
-        {
-            _renderer.sprite = topRightCorner;
-        }
-        else if (top && bottom && !right && !left) // Vertical
-        {
-            _renderer.sprite = verticalWall;
-        }
-        else if (right && left && !top && !bottom) // Horizontal
-        {
-            _renderer.sprite = horizontalWall;
-        }
+        
 
-        if (_renderer == null) 
+        if (!set)
         {
             _renderer.sprite = defaultWall;
         }

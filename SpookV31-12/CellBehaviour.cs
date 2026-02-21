@@ -5,13 +5,13 @@ public class CellBehaviour : MonoBehaviour
 {
     public int[] probabilityScore;
     public Sprite[] floorTiles;
-    public string[] floorCodes;
-
-    public Sprite[] objectSprites;
-    public string[] objectCodes;
-    public int[] objectPosition;
+    public int[] floorCodes;
 
     public int cellID;
+
+    public int code;
+    public int elementCode;
+    public int elementOrientation;
 
     private SpriteRenderer _renderer;
 
@@ -62,9 +62,22 @@ public class CellBehaviour : MonoBehaviour
             if (randomSetting > bottom && randomSetting <= top)
             {
                 _renderer.sprite = floorTiles[i];
+                code = floorCodes[i];
                 break;
             }
         }
     }
+
+    public void PlaceElement(int newElementCode, int newElementOrientation)
+    {
+        elementCode = newElementCode;
+        elementOrientation = newElementOrientation;
+    }
+
+    public int GetElement()
+    {
+        return elementCode;
+    }
+
 }
 
