@@ -39,20 +39,35 @@ public class Cell
 
     }
 
-    public void InitializeCell(int x, int y)
+    public void InitializeCell(int x, int y, bool set = false, int code = 0, GameObject prefab = null)
     {
-        _xPosition = x;
+        GameObject cellPrefab = null;
+        if (set)
+        {
+            cellPrefab = prefab;
+        }
+        else
+        {
+           cellPrefab = MazeManager.Instance.cellTypePrefab;
+        }
+            _xPosition = x;
         _yPosition = y;
         _cellObject = UnityEngine.Object.Instantiate(
-            MazeManager.Instance.cellTypePrefab,
+            cellPrefab,
             new Vector2(_xPosition, _yPosition),
             Quaternion.identity,
             _gameObjectParent.transform
         );
         CellBehaviour cellBehaviour = _cellObject.GetComponent<CellBehaviour>();
         cellBehaviour.InitializeCell(_cellID);
-        cellBehaviour.LoadFloorSprite();
-
+        if (set) 
+        {
+            cellBehaviour.SetSprite(code);
+        }
+        else
+        {
+            cellBehaviour.LoadFloorSprite();
+        }
     }
 
     private int GetCellId()
@@ -69,14 +84,53 @@ public class Cell
 
     public bool Available()
     {
-        if (nextToGatewayB || nextToGatewayL || nextToGatewayR || nextToGatewayT)
+        if (PresentsGateway()) // cannot be placed in the way of a gate
         {
             return false;
         }
         CellBehaviour cellBehaviour = _cellObject.GetComponent<CellBehaviour>();
-        if (cellBehaviour.elementCode != 0)
+        if (cellBehaviour.elementCode != 0) // Empty space
         {
             return false;
+        }
+        return true;
+    }
+
+    public bool AvailableForBarrier(string barrierOrientation)
+    {
+        if (PresentsGateway()) // cannot be placed in the way of a gate
+        {
+            return false;
+        }
+        CellBehaviour cellBehaviour = _cellObject.GetComponent<CellBehaviour>();
+        if (cellBehaviour.elementCode == 0) // Empty space
+        {
+            return true;
+        }
+        if (cellBehaviour.elementCode != 0) // Space is not empty
+        {
+            // This is specifically for when a barrier crosses the passage of another barrier
+            // If the orientations are different, they are given a leeway
+            // The distanceFromWalls from Barrier Disposition is not taken into account
+
+            string orientation = null;
+            if (cellBehaviour.elementOrientation == 0 || cellBehaviour.elementOrientation == 180)
+            {
+                orientation = "L";
+            }
+            else
+            {
+                orientation = "B";
+            }
+            
+            if (barrierOrientation == orientation)
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
         }
         return true;
     }
@@ -88,6 +142,11 @@ public class Cell
             return true;
         }
         return false;
+    }
+
+    public GameObject GetCellObject()
+    {
+        return _cellObject;
     }
 
 }

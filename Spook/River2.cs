@@ -3,6 +3,10 @@ using UnityEngine;
 public class River2 : Barrier
 {
     public GameObject closedRiverPrefab;
+    public GameObject riverPrefab;
+
+    public int maxBridgeWidth;
+    public int maxBridgeHeight;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()

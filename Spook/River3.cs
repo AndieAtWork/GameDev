@@ -4,6 +4,10 @@ public class River3 : Barrier
 {
     public GameObject closedRiverPrefab;
     public GameObject openRiverPrefab;
+    public GameObject riverPrefab;
+
+    public int maxBridgeWidth;
+    public int maxBridgeHeight;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()

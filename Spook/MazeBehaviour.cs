@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
-
+using System.IO;
 
 public class MazeManager : MonoBehaviour
 {
@@ -32,15 +32,12 @@ public class MazeManager : MonoBehaviour
     private Room[] _rooms; // The array of rooms in the maze
     private HashSet<GameObject> _gateWays; // all gateways from every room
 
-    public GameObject barrierPrefab;
-    public int barrierChance; // Chance of there being a wall
-    public int barrierDice; // How many times that chance is played
-
     public GameObject[] elementsPrefab;
     public int[] elementsChance; // Chance of there being an elemet
     public int[] elementsDice; // How many times that chance is played (also max times it can appear
 
-    public string nextScene;
+    public string nextScene; // Where the last room leads
+    public string levelName; // Name of the JSON file
 
     // Top is an opening from the top of the room
     private static readonly string[] gateDispositionOptions = { "T", "R", "B", "L" };
@@ -85,7 +82,7 @@ public class MazeManager : MonoBehaviour
 
     }
 
-    // Main function
+    // Main function: MAP IS CREATED AND STORED INTO A JSON
     void CreateMap()
     {
         _rooms = new Room[roomNumber];
@@ -103,9 +100,13 @@ public class MazeManager : MonoBehaviour
         _gateWays = new HashSet<GameObject>(); // All gates
 
         PlaceGateWays(_rooms); // Primary gateways are instantiated in all rooms
-        PlaceAllBorders(); // Colliders are instantiated in all map
+        //PlaceAllBorders(); // Colliders are instantiated in all map
+        //commented as there is no need to load them in the maze creator
+
         PlaceAllBarriers(); // Inner Barriers are placed
         PlaceAllElements(); // Scenery Elements are placed
+
+        CreateJson(); // Saves the rooms in a json file
 
     }
 
@@ -223,10 +224,15 @@ public class MazeManager : MonoBehaviour
     // Barriers are both walls and rivers
     private void PlaceAllBarriers()
     {
+        BarrierDisposition disposition = GetComponent<BarrierDisposition>();
+        // BarrierDisposition has all the data on how to implement the barrier of the Maze
+        int barrierDice = disposition.barrierDice; // how many times the chances are played; Also max amount of barriers
+        int barrierChance = disposition.barrierChance; // chance of there being a barrier for each dice
+        GameObject barrierPrefab = disposition.barrierPrefab;
 
         for (int i = 0; i < _rooms.Length; i++)
         {
-            int happenings = 0;
+            int happenings = 0; // How many barriers
             for (int dice = 0; dice < barrierDice; dice++)
             {
                 int numero = UnityEngine.Random.Range(1, 101);
@@ -241,6 +247,7 @@ public class MazeManager : MonoBehaviour
                 barrier.PlaceObject(_rooms[i]);
             }
         }
+
     }
 
     // Scenery elements are places around the rooms
@@ -248,7 +255,133 @@ public class MazeManager : MonoBehaviour
     {
         for (int i = 0; i < _rooms.Length; i++)
         {
+            List<GameObject> sceneryList = new List<GameObject>();
+
+            for (int e = 0; e < elementsPrefab.Length; e++)
+            {
+                // Each element has a prefab, a number of dice, and a chance of happening
+                // Same logic as the method above
+                GameObject elementPrefab = elementsPrefab[e];
+                int elementChance = elementsChance[e];
+                int elementDice = elementsDice[e];
+
+                int happenings = 0;
+                for (int dice = 0; dice < elementDice; dice++)
+                {
+                    int numero = UnityEngine.Random.Range(1, 101);
+                    if (numero <= elementChance)
+                    {
+                        happenings += 1;
+                    }
+                }
+                for (int h = 0; h < happenings; h++)
+                {
+                    sceneryList.Add(elementPrefab);
+                }
+            }
+
+            GameObject[] sceneryArray = sceneryList.ToArray(); 
+            // The list is turned into an array and disordered
+            // This way no element has an advantage of fitting into the scene
+            Room.Shuffle(sceneryArray);
+
+            for (int x = 0; x < sceneryArray.Length; x++)
+            {
+                Debug.Log("SCENERY IS PLACED");
+                SceneryElement scenery = sceneryArray[x].GetComponent<SceneryElement>();
+                scenery.PlaceObject(_rooms[i]);
+            }
+
         }
     }
 
+    private void CreateJson() // Loads all the scene and stores it in a JSON file
+    {
+        Debug.Log("Creating json...");
+        Debug.Log(Application.persistentDataPath);
+
+        string path = Path.Combine(
+            Application.persistentDataPath,
+            levelName + ".json"
+        );
+
+        //if (File.Exists(path))
+        //    return;
+
+        string[] roomJsonArray = new string[_rooms.Length];
+        for (int r = 0; r < _rooms.Length; r++) // Each room is stored separatedly
+        {
+            string roomJson = "";
+            Cell[][] grid = _rooms[r].GetGrid();
+            string[] cellsArray = new string[frameSize * frameSize]; // The cells are a one dimensional array, with a given frame height/width to read
+
+            int count = 0;
+            for (int y = 0; y < frameSize; y++) 
+            {
+                for (int x = 0; x < frameSize; x++)
+                {
+                    Cell cell = grid[x][y];
+                    if (cell == null)
+                    {
+                        string cellJson = "{\"status\": 0}"; // Status 0 means no part of the maze/No Cells
+                        cellsArray[count] = cellJson;
+                    }
+                    else
+                    {
+                        CellBehaviour cellBehaviour = cell.GetCellObject().GetComponent<CellBehaviour>();
+                        int tileCode = cellBehaviour.code;
+                        int elementCode = cellBehaviour.elementCode;
+                        int elementOrientation = cellBehaviour.elementOrientation;
+
+                        int nextGT = cell.nextToGatewayT ? 1 : 0;
+                        int nextGB = cell.nextToGatewayB ? 1 : 0;
+                        int nextGR = cell.nextToGatewayR ? 1 : 0;
+                        int nextGL = cell.nextToGatewayL ? 1 : 0;
+                        int[] nextToGatewayArray = { nextGT, nextGB, nextGR, nextGL };
+                        string nextToGatewayStr = $"[{string.Join(",", nextToGatewayArray)}]";
+
+                        string cellJson = "{\"status\": 1, " +
+                                            "\"tile\": " + tileCode.ToString() + ", " +
+                                            "\"elementCode\": " + elementCode.ToString() + ", " +
+                                            "\"elementOrientation\": " + elementOrientation.ToString() + ", " +
+                                            "\"nextGateway\":" + nextToGatewayStr + "}";
+                        cellsArray[count] = cellJson;
+                    }
+                    count++;
+                }
+            }
+            // Each room has cells and gateways
+            GameObject[] gatewaysArray = _rooms[r].GetGateways().ToArray();
+            string[] gatesJsonArray = new string[gatewaysArray.Length];
+            for (int g = 0; g < gatewaysArray.Length; g++)
+            {
+                GameObject gateObject = gatewaysArray[g];
+                GateWay gate = gateObject.GetComponent<GateWay>();
+                string gateJson = "{\"coordsPosition\":" + $"[{string.Join(",", gate.GetFromScreenPositions())}], " + //Position is where they are placed
+                                    "\"coordsDestination\":" + $"[{string.Join(",", gate.GetToScreenPositions())}], " + //Destination where they lead
+                                    "\"toRoom\":" + gate.toRoomID + "}"; //The room they lead to
+
+                gatesJsonArray[g] = gateJson;
+            }
+
+            roomJson =
+                                $@"{{ 
+                                    ""room_number"": {r + 1},
+                                    ""cells"": [{string.Join(",", cellsArray)}],
+                                    ""gates"": [{string.Join(",", gatesJsonArray)}]
+                                  }}";
+            roomJsonArray[r] = roomJson;
+        }
+
+        // General information: number of rooms, frame, distancing between frames, info on room Array
+        string roomsJson = "[" + string.Join(",", roomJsonArray) + "]";
+        string json = "{\"rooms_n\": " + roomNumber.ToString() + ", " +
+                        "\"frame_size\": " + frameSize.ToString() + ", " +
+                        "\"distancing\":" + _distancing.ToString() + ", " +
+                        "\"rooms\": " + roomsJson + " }";
+
+        File.WriteAllText(path, json);
+        // After the json file is created, the game should go to the next scene and keep creating the rest of the maze
+        // So it is all loaded by the time the player starts playing
+    } 
 }

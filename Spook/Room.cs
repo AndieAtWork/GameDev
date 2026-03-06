@@ -166,7 +166,7 @@ public class Room
     }
 
     // Gets all cells in room grid
-    HashSet<Cell> GetAllCells()
+    public HashSet<Cell> GetAllCells()
     {
         HashSet<Cell> allCells = new HashSet<Cell>();
         for (int x = 0; x < _frameSize; x++)
@@ -433,7 +433,7 @@ public class Room
         }
     }
 
-    // Add Gate to a room
+    // Add Gate to a room: Maze creation
     // Should set nextTo and neighbouring cells
     public void AddGate(GameObject gateway, int frameX, int frameY, string orientation)
     {
@@ -455,6 +455,12 @@ public class Room
             _roomGrid[frameX][frameY].nextToGatewayL = true;
         }
 
+    }
+
+    // Add Gate to a room: Printer 
+    public void AddGatePrinter(GameObject gateway)
+    {
+        _gateWays.Add(gateway);
     }
 
     // Gateway is created and partially initialized
@@ -648,12 +654,22 @@ public class Room
         string key = x + "/" + y;
         if (!_walls.ContainsKey(key))
         {
+            GameObject prefab = null;
+            if (MazeManager.Instance != null)
+            {
+                prefab = MazeManager.Instance.wallPrefab;
+            }
+            else
+            {
+                prefab = PrinterBehaviour.Instance.wallPrefab;
+            }
+
             GameObject gateObject = UnityEngine.Object.Instantiate(
-                    MazeManager.Instance.wallPrefab,
-                    new Vector2(screenX, screenY),
-                    Quaternion.identity,
-                    _roomObject.transform
-                );
+                prefab,
+                new Vector2(screenX, screenY),
+                Quaternion.identity,
+                _roomObject.transform
+            );
             WallBehaviour wall = gateObject.GetComponent<WallBehaviour>();
             wall.LoadFrame(x, y);
             _walls[key] = wall;
@@ -661,7 +677,7 @@ public class Room
     }
 
     // Recognizes borders to find corners
-    private bool[] findCorners(int frameX, int frameY)
+    private bool[] FindCorners(int frameX, int frameY)
     {
         bool rightBorder = false;
         bool leftBorder = false;
@@ -707,28 +723,6 @@ public class Room
         return new bool[] { topBorder, bottomBorder, rightBorder, leftBorder };
     }
 
-    //private string IsInnerCorner(int frameX, int frameY, string orientation)
-    //{
-    //    Cell cell = _roomGrid[frameX][frameY];
-    //    if (orientation == "T")
-    //    {
-
-    //    }
-    //    else if (orientation == "B")
-    //    {
-
-    //    }
-    //    else if (orientation == "R")
-    //    {
-
-    //    }
-    //    else if (orientation == "L")
-    //    {
-
-    //    }
-    //    return null;
-    //}
-
     // Finds the walls corners and adds the to _walls
     private void fixCorner(Cell cell)
     {
@@ -736,7 +730,7 @@ public class Room
         int frameX = coords[0];
         int frameY = coords[1];
 
-        bool[] corners = findCorners(frameX, frameY);
+        bool[] corners = FindCorners(frameX, frameY);
         bool topBorder = corners[0];
         bool bottomBorder = corners[1];
         bool rightBorder = corners[2];
@@ -766,14 +760,37 @@ public class Room
 
     }
 
-    public Cell[][] GetGrid()
+    public Cell[][] GetGrid() // Grid can be needed to position barriers/scenery, also to program enemy movement
     {
         return _roomGrid;
+    }
+
+    public void SetGrid(int frame, int id, GameObject roomObj) // This sets the entire room ready for use
+    {
+        _roomGrid = new Cell[frame][];
+        for (int g = 0; g < frame; g++)
+        {
+            _roomGrid[g] = new Cell[frame];
+        }
+        _gateWays = new HashSet<GameObject>();
+        _walls = new Dictionary<string, WallBehaviour>();
+        _roomID = id;
+        _roomObject = roomObj;
+        _frameSize = frame;
+    }
+
+    public void SetCell(Cell cell, int frameX, int frameY) // Set cells into their corresponding place into the grid, without entering the grid to do it
+    {
+        _roomGrid[frameX][frameY] = cell;
     }
 
     public GameObject GetRoom()
     {
         return _roomObject;
+    }
+
+    public HashSet<GameObject> GetGateways() {
+        return _gateWays;
     }
 
     public static void Shuffle<T>(T[] array)

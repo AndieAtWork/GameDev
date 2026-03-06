@@ -37,7 +37,7 @@ public class CellBehaviour : MonoBehaviour
         cellID = ID;
     }
 
-    public void LoadFloorSprite() {
+    public void LoadFloorSprite() { // Randomizes a cell's sprite
         Dictionary<string, object>[] probabilityRange = new Dictionary<string, object>[floorTiles.Length];
 
         for (int i = 0; i < floorTiles.Length; i++)
@@ -77,6 +77,13 @@ public class CellBehaviour : MonoBehaviour
     public int GetElement()
     {
         return elementCode;
+    }
+
+    public void SetSprite(int code) // When loading a premade - maze
+    {
+        int index = System.Array.IndexOf(floorCodes, code);
+        Sprite sprite = floorTiles[index];
+        _renderer.sprite = sprite;
     }
 
 }

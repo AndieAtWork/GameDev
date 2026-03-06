@@ -1,7 +1,14 @@
 using UnityEngine;
 
-public abstract class ElementBehaviour : MonoBehaviour
+public class RoomDisposition : MonoBehaviour
 {
+    public GameObject entryGateway; // Entry to the scene
+
+    public GameObject exitGateway; // Exit to the scene
+
+    public GameObject[] gatways; // Special scene rooms
+
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -13,7 +20,4 @@ public abstract class ElementBehaviour : MonoBehaviour
     {
         
     }
-
-    public abstract void PlaceObject(Room room);
-
 }
