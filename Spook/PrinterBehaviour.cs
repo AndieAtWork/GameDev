@@ -2,6 +2,7 @@ using UnityEngine;
 using System.IO;
 using Newtonsoft.Json.Linq;
 using System.Linq;
+using System.Collections.Generic;
 
 public class PrinterBehaviour : MonoBehaviour
 {
@@ -21,6 +22,7 @@ public class PrinterBehaviour : MonoBehaviour
 
     // Rooms are kept as in the maze behaviour
     private Room[] _rooms;
+    private HashSet<GameObject> _gateWays;
 
     private void Awake()
     {
@@ -36,6 +38,7 @@ public class PrinterBehaviour : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        _gateWays = new HashSet<GameObject>();
         Read();
     }
 
@@ -49,21 +52,21 @@ public class PrinterBehaviour : MonoBehaviour
     {
         string path = Path.Combine(
             Application.persistentDataPath,
-            levelFilename
+            levelFilename + ".json"
         );
 
         if (File.Exists(path))
         {
-            string json = File.ReadAllText(path);
+            string json = File.ReadAllText(path); // The json is loaded according to the name of the level given
             Debug.Log("JSON cargado...");
 
             JObject obj = JObject.Parse(json);
 
-            int roomsCount = (int)obj["rooms_n"];
-            int frame = (int)obj["frame_size"];
-            int distancing = (int)obj["distancing"];
+            int roomsCount = (int)obj["rooms_n"]; // Number of generated rooms
+            int frame = (int)obj["frame_size"]; // Size of the rooms' frames for grid creation and horizontal spacing
+            int distancing = (int)obj["distancing"]; // For horizontal spacing between grids
 
-            _rooms = new Room[roomsCount];
+            _rooms = new Room[roomsCount]; // The room array is made
 
             JArray roomsArray = (JArray)obj["rooms"];
             int count = 0;
@@ -142,6 +145,8 @@ public class PrinterBehaviour : MonoBehaviour
 
                     int toRoom = (int)gateJson["toRoom"];
 
+                    string orientation = (string)gateJson["orientation"];
+
                     GameObject gateObject = UnityEngine.Object.Instantiate(
                         warpPrefab,
                         new Vector2(coordsPosition[0], coordsPosition[1]),
@@ -150,9 +155,37 @@ public class PrinterBehaviour : MonoBehaviour
                     );
                     GateWay gateBehaviour = gateObject.GetComponent<GateWay>();
                     gateBehaviour.SetToScreenPositions(coordsDestination[0], coordsDestination[1], toRoom); // Only absolute positions are being used currently
+                    gateBehaviour.SetDestinationOrientation(orientation);
                     r.AddGatePrinter(gateObject); // Rooms know their gates
+                    _gateWays.Add(gateObject); // Maze knows all gates
                 }
                 count++;
+            }
+
+            JArray setGatesArray = (JArray)obj["gates"];
+            GameObject setgates = new GameObject("setGates");
+            foreach (JToken gateJson in setGatesArray)
+            {
+                JArray coordsJArray = (JArray)gateJson["coordsPosition"]; // Where they are placed
+                int[] coordsPosition = coordsJArray.Select(g => (int)g).ToArray();
+
+                JArray destinationJArray = (JArray)gateJson["coordsDestination"]; // Where they lead
+                int[] coordsDestination = destinationJArray.Select(g => (int)g).ToArray();
+
+                int toRoom = (int)gateJson["toRoom"];
+
+                string orientation = (string)gateJson["orientation"];
+
+                GameObject gateObject = UnityEngine.Object.Instantiate(
+                        warpPrefab,
+                        new Vector2(coordsPosition[0], coordsPosition[1]),
+                        Quaternion.identity,
+                        setgates.transform
+                    );
+                GateWay gateBehaviour = gateObject.GetComponent<GateWay>();
+                gateBehaviour.SetToScreenPositions(coordsDestination[0], coordsDestination[1], toRoom); // Only absolute positions are being used currently
+                gateBehaviour.SetDestinationOrientation(orientation); 
+                _gateWays.Add(gateObject); // Maze knows all gates
             }
         }
         else

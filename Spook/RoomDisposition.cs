@@ -2,12 +2,11 @@ using UnityEngine;
 
 public class RoomDisposition : MonoBehaviour
 {
-    public GameObject entryGateway; // Entry to the scene
+    public int[] gatewaysPositionX; // Where it is placed in X
+    public int[] gatewaysPositionY; // Where it is placed in Y
+    public string[] gatewaysOrientation; // Orientation in which it appears after being crossed
 
-    public GameObject exitGateway; // Exit to the scene
-
-    public GameObject[] gatways; // Special scene rooms
-
+    // The room number is the index inside the arrays
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()

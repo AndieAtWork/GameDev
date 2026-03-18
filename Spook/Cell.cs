@@ -50,7 +50,8 @@ public class Cell
         {
            cellPrefab = MazeManager.Instance.cellTypePrefab;
         }
-            _xPosition = x;
+        
+        _xPosition = x;
         _yPosition = y;
         _cellObject = UnityEngine.Object.Instantiate(
             cellPrefab,

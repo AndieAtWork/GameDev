@@ -412,7 +412,10 @@ public class Room
             randomCell = allCells.ElementAt(index);
         }
         else
-        {
+        {   if (set.Count == 0)
+            {
+                return null;
+            }
             int index = Random.Range(0, set.Count);
             randomCell = set.ElementAt(index);
         }
